@@ -1,0 +1,197 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ペルソナコンセプトジェネレーター</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 class="text-2xl font-bold text-center mb-8">ペルソナコンセプトジェネレーター</h1>
+
+        <!-- Wordファイルアップロードフォーム -->
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-bold mb-4">Wordファイルからペルソナを読み込む</h2>
+            <input type="file" @change="loadWordFile" class="w-full p-2 border rounded-lg">
+        </div>
+
+        <!-- 手入力によるペルソナ入力 -->
+        <div v-if="activeTab === '入力'" class="space-y-6">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-bold mb-4">基本情報</h2>
+                <!-- 基本情報フィールド -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div v-for="(field, key) in basicFields" :key="key">
+                        <label class="block text-sm font-medium mb-1">{{field.label}}</label>
+                        <input 
+                            type="text" 
+                            v-model="persona[key]"
+                            :placeholder="field.placeholder"
+                            class="w-full p-2 border rounded-lg"
+                        >
+                    </div>
+                </div>
+            </div>
+
+            <!-- 新たな詳細情報フィールドの追加 -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-bold mb-4">詳細情報</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div v-for="(field, key) in extendedDetailFields" :key="key">
+                        <label class="block text-sm font-medium mb-1">{{field.label}}</label>
+                        <input 
+                            type="text" 
+                            v-model="persona[key]"
+                            :placeholder="field.placeholder"
+                            class="w-full p-2 border rounded-lg"
+                        >
+                    </div>
+                </div>
+            </div>
+
+            <!-- 競合との差別化価値提案のフィールド -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-bold mb-4">競合との差別化</h2>
+                <input 
+                    type="text" 
+                    v-model="persona.uniqueValue"
+                    placeholder="競合と差別化できるポイントを入力"
+                    class="w-full p-2 border rounded-lg"
+                >
+            </div>
+
+            <!-- 生成ボタンと生成されたコンセプト -->
+            <button @click="generateConcept" class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">
+                コンセプトを生成
+            </button>
+
+            <div v-if="concept" class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-bold mb-4">生成されたコンセプト</h2>
+                <div class="space-y-4">
+                    <div>
+                        <div class="font-medium">テーマ</div>
+                        <div>{{concept.theme}}</div>
+                    </div>
+                    <div>
+                        <div class="font-medium">主な特徴</div>
+                        <ul class="list-disc list-inside">
+                            <li v-for="feature in concept.features" :key="feature">
+                                {{feature}}
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <div class="font-medium">ユースケースの例</div>
+                        <div>{{concept.useCase}}</div>
+                    </div>
+                    <div>
+                        <div class="font-medium">ターゲットユーザー</div>
+                        <div>{{concept.target}}</div>
+                    </div>
+                    <div>
+                        <div class="font-medium">独自の価値提案</div>
+                        <div>{{concept.value}}</div>
+                    </div>
+                </div>
+
+                <!-- フィードバック入力フィールド -->
+                <textarea 
+                    v-model="concept.feedback" 
+                    placeholder="このコンセプトに対するフィードバックを入力" 
+                    class="w-full p-2 border rounded-lg mt-4"
+                ></textarea>
+                
+                <button 
+                    @click="saveConcept"
+                    class="w-full mt-4 bg-green-500 text-white py-2 rounded-lg hover:bg-green-600"
+                >
+                    保存する
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive } = Vue
+
+        createApp({
+            setup() {
+                const activeTab = ref('入力')
+                const newTheme = ref('')
+                const savedConcepts = ref([])
+                const concept = ref(null)
+
+                const themes = ref([
+                    '快適な生活をサポート',
+                    'ストレスフリーな日常',
+                    '効率的な時間管理',
+                    '充実したライフスタイル',
+                    'コミュニティとの繋がり'
+                ])
+
+                const basicFields = {
+                    age: { label: '年齢層', placeholder: '例: 20代' },
+                    gender: { label: '性別', placeholder: '例: 女性' },
+                    occupation: { label: '職業', placeholder: '例: 会社員' },
+                    income: { label: '年収', placeholder: '例: 400万円' },
+                    location: { label: '居住地', placeholder: '例: 都心部' }
+                }
+
+                const extendedDetailFields = {
+                    lifestyle: { label: 'ライフスタイル', placeholder: '例: アクティブ' },
+                    interests: { label: '興味・関心', placeholder: '例: 健康、趣味' },
+                    painPoints: { label: '課題・悩み', placeholder: '例: 時間管理' },
+                    values: { label: '価値観', placeholder: '例: 健康重視' }
+                }
+
+                const persona = reactive({})
+
+                // Wordファイルの読み込み機能
+                const loadWordFile = (event) => {
+                    const file = event.target.files[0]
+                    if (file && file.name.endsWith('.docx')) {
+                        const reader = new FileReader()
+                        reader.onload = (e) => {
+                            mammoth.extractRawText({arrayBuffer: e.target.result})
+                                .then((result) => {
+                                    parsePersona(result.value)
+                                })
+                                .catch((err) => console.error("ファイルの読み込みに失敗しました: ", err))
+                        }
+                        reader.readAsArrayBuffer(file)
+                    } else {
+                        alert("有効なWordファイル(.docx)をアップロードしてください。")
+                    }
+                }
+
+                // 読み込んだテキストからペルソナ情報を解析して設定
+                const parsePersona = (text) => {
+                    const lines = text.split('\n')
+                    lines.forEach(line => {
+                        const [key, value] = line.split(':')
+                        if (key && value && persona[key.trim()] !== undefined) {
+                            persona[key.trim()] = value.trim()
+                        }
+                    })
+                }
+
+                return {
+                    activeTab,
+                    newTheme,
+                    themes,
+                    savedConcepts,
+                    concept,
+                    persona,
+                    basicFields,
+                    extendedDetailFields,
+                    loadWordFile
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
